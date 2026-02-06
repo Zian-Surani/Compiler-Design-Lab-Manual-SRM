@@ -19,7 +19,7 @@ Final stack element → complete NFA*/
 #include <ctype.h>
 
 #define MAX 100
-#define EPSILON 'ε'
+#define EPSILON 'e'
 
 /* ================= STATE & TRANSITION ================= */
 
@@ -57,11 +57,14 @@ void push(Stack *s, NFA nfa) { s->items[++s->top] = nfa; }
 NFA pop(Stack *s) { return s->items[s->top--]; }
 
 /* ================= CREATE STATE ================= */
+State *allStates[200];
+int totalStates = 0;
 
 State* createState() {
     State *s = (State*)malloc(sizeof(State));
     s->id = stateCount++;
     s->transitions = NULL;
+    allStates[totalStates++] = s;   // store state
     return s;
 }
 
@@ -217,16 +220,54 @@ NFA postfixToNFA(char *postfix) {
 
 /* ================= PRINT NFA ================= */
 
-void printNFA(State *s, int visited[]) {
-    if (!s || visited[s->id]) return;
+void printNFATable(State *states[], int totalStates, State *start, State *end) {
 
-    visited[s->id] = 1;
+    printf("\n================ NFA TRANSITION TABLE ================\n\n");
 
-    for (Transition *t = s->transitions; t; t = t->next) {
-        printf("δ(q%d, %c) → q%d\n", s->id, t->symbol, t->to->id);
-        printNFA(t->to, visited);
+    printf("%-10s %-10s %-10s\n", "FROM", "SYMBOL", "TO");
+    printf("------------------------------------------------------\n");
+
+    for (int i = 0; i < totalStates; i++) {
+        Transition *t = states[i]->transitions;
+
+        while (t) {
+            printf("q%-9d %-10c q%-10d\n",
+                   states[i]->id,
+                   t->symbol,
+                   t->to->id);
+            t = t->next;
+        }
+    }
+
+    printf("\nStart State : q%d\n", start->id);
+    printf("Final State : q%d\n", end->id);
+}
+
+void printNFADiagram(State *states[], int totalStates, State *start, State *end) {
+
+    printf("\n================ NFA DIAGRAM (ASCII) ================\n\n");
+
+    for (int i = 0; i < totalStates; i++) {
+
+        printf("(q%d)", states[i]->id);
+
+        if (states[i] == start) printf(" [START]");
+        if (states[i] == end)   printf(" [FINAL]");
+
+        printf("\n");
+
+        Transition *t = states[i]->transitions;
+
+        while (t) {
+            printf("   |\n");
+            printf("   |-- %c --> (q%d)\n", t->symbol, t->to->id);
+            t = t->next;
+        }
+
+        printf("\n");
     }
 }
+
 
 /* ================= MAIN ================= */
 
@@ -246,10 +287,13 @@ int main() {
     int visited[200] = {0};
 
     printf("\nNFA Transition Table:\n");
-    printNFA(nfa.start, visited);
+    printNFATable(allStates, totalStates, nfa.start, nfa.end);
 
     printf("\nStart State: q%d", nfa.start->id);
     printf("\nFinal State: q%d\n", nfa.end->id);
+
+    printNFADiagram(allStates, totalStates, nfa.start, nfa.end);
+
 
     return 0;
 }
