@@ -1,135 +1,117 @@
-//c code implementation for converting a given NFA to DFA using subset conversion algorithm
-
-/*Compute ε-closure(start state) → DFA start state
-
-For each DFA state and input symbol:
-
-Apply move
-
-Take ε-closure
-
-Form new DFA state
-
-Mark DFA state final if it contains any NFA final state*/
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#define MAX_STATES 20
+#define MAX_STATES 10
 #define MAX_SYMBOLS 10
-#define EPSILON 'e'
 
-/* ================= NFA STRUCTURE ================= */
+/* ================= NFA ================= */
 
 typedef struct {
     int numStates;
     int numSymbols;
     char symbols[MAX_SYMBOLS];
-    int transition[MAX_STATES][MAX_SYMBOLS][MAX_STATES]; 
+
+    int trans[MAX_STATES][MAX_SYMBOLS][MAX_STATES];
     int transCount[MAX_STATES][MAX_SYMBOLS];
+
     int epsilon[MAX_STATES][MAX_STATES];
     int epsilonCount[MAX_STATES];
-    int startState;
-    int finalStates[MAX_STATES];
+
+    int start;
+    int final[MAX_STATES];
 } NFA;
 
-/* ================= DFA STRUCTURE ================= */
+/* ================= DFA ================= */
 
 typedef struct {
     int states[1 << MAX_STATES][MAX_STATES];
     int stateCount;
-    int isFinal[1 << MAX_STATES];
-    int transition[1 << MAX_STATES][MAX_SYMBOLS];
+    int final[1 << MAX_STATES];
+    int trans[1 << MAX_STATES][MAX_SYMBOLS];
 } DFA;
 
 /* ================= ε-CLOSURE ================= */
 
-void epsilonClosure(NFA *nfa, int *inputSet, int *closure) {
+void epsilonClosure(NFA *nfa, int *input, int *closure) {
     int stack[MAX_STATES], top = -1;
 
     for (int i = 0; i < nfa->numStates; i++) {
-        closure[i] = inputSet[i];
-        if (inputSet[i])
-            stack[++top] = i;
+        closure[i] = input[i];
+        if (input[i]) stack[++top] = i;
     }
 
     while (top >= 0) {
         int s = stack[top--];
 
         for (int i = 0; i < nfa->epsilonCount[s]; i++) {
-            int next = nfa->epsilon[s][i];
-            if (!closure[next]) {
-                closure[next] = 1;
-                stack[++top] = next;
+            int nxt = nfa->epsilon[s][i];
+            if (!closure[nxt]) {
+                closure[nxt] = 1;
+                stack[++top] = nxt;
             }
         }
     }
 }
 
-/* ================= MOVE FUNCTION ================= */
+/* ================= MOVE ================= */
 
-void move(NFA *nfa, int *stateSet, int symbolIndex, int *result) {
+void move(NFA *nfa, int *stateSet, int sym, int *result) {
     memset(result, 0, sizeof(int) * MAX_STATES);
 
     for (int i = 0; i < nfa->numStates; i++) {
         if (stateSet[i]) {
-            for (int j = 0; j < nfa->transCount[i][symbolIndex]; j++) {
-                int next = nfa->transition[i][symbolIndex][j];
-                result[next] = 1;
+            for (int j = 0; j < nfa->transCount[i][sym]; j++) {
+                result[nfa->trans[i][sym][j]] = 1;
             }
         }
     }
 }
 
-/* ================= CHECK SET EXISTENCE ================= */
+/* ================= CHECK SAME SET ================= */
 
-int sameSet(int *a, int *b, int n) {
+int same(int *a, int *b, int n) {
     for (int i = 0; i < n; i++)
         if (a[i] != b[i]) return 0;
     return 1;
 }
 
-/* ================= NFA → DFA ================= */
+/* ================= SUBSET CONSTRUCTION ================= */
 
-void convertToDFA(NFA *nfa, DFA *dfa) {
+void convert(NFA *nfa, DFA *dfa) {
     int startSet[MAX_STATES] = {0};
-    startSet[nfa->startState] = 1;
+    startSet[nfa->start] = 1;
 
     epsilonClosure(nfa, startSet, dfa->states[0]);
     dfa->stateCount = 1;
 
     for (int i = 0; i < dfa->stateCount; i++) {
 
-        /* Mark final states */
-        for (int f = 0; f < nfa->numStates; f++)
-            if (dfa->states[i][f] && nfa->finalStates[f])
-                dfa->isFinal[i] = 1;
+        for (int j = 0; j < nfa->numStates; j++)
+            if (dfa->states[i][j] && nfa->final[j])
+                dfa->final[i] = 1;
 
         for (int s = 0; s < nfa->numSymbols; s++) {
 
-            int moveSet[MAX_STATES], closure[MAX_STATES];
+            int mv[MAX_STATES], cl[MAX_STATES];
 
-            move(nfa, dfa->states[i], s, moveSet);
-            epsilonClosure(nfa, moveSet, closure);
+            move(nfa, dfa->states[i], s, mv);
+            epsilonClosure(nfa, mv, cl);
 
-            /* Check if closure already exists */
             int found = -1;
             for (int j = 0; j < dfa->stateCount; j++) {
-                if (sameSet(dfa->states[j], closure, nfa->numStates)) {
+                if (same(dfa->states[j], cl, nfa->numStates)) {
                     found = j;
                     break;
                 }
             }
 
-            /* New DFA state */
             if (found == -1) {
                 found = dfa->stateCount;
-                memcpy(dfa->states[dfa->stateCount++], closure,
+                memcpy(dfa->states[dfa->stateCount++], cl,
                        sizeof(int) * MAX_STATES);
             }
 
-            dfa->transition[i][s] = found;
+            dfa->trans[i][s] = found;
         }
     }
 }
@@ -137,7 +119,7 @@ void convertToDFA(NFA *nfa, DFA *dfa) {
 /* ================= PRINT DFA ================= */
 
 void printDFA(DFA *dfa, NFA *nfa) {
-    printf("\nDFA Transition Table:\n");
+    printf("\n===== DFA TRANSITION TABLE =====\n\n");
 
     for (int i = 0; i < dfa->stateCount; i++) {
 
@@ -146,57 +128,78 @@ void printDFA(DFA *dfa, NFA *nfa) {
             if (dfa->states[i][j]) printf("q%d ", j);
         printf("}");
 
-        if (dfa->isFinal[i]) printf("  [Final]");
-
+        if (dfa->final[i]) printf("  [FINAL]");
         printf("\n");
 
         for (int s = 0; s < nfa->numSymbols; s++) {
-            printf("  --%c--> State %d\n",
-                   nfa->symbols[s],
-                   dfa->transition[i][s]);
+            printf("   --%c--> State %d\n",
+                   nfa->symbols[s], dfa->trans[i][s]);
         }
         printf("\n");
     }
 }
 
-/* ================= SAMPLE NFA INPUT ================= */
-
-void sampleNFA(NFA *nfa) {
-    nfa->numStates = 3;
-    nfa->numSymbols = 2;
-
-    nfa->symbols[0] = 'a';
-    nfa->symbols[1] = 'b';
-
-    nfa->startState = 0;
-
-    memset(nfa->transition, 0, sizeof(nfa->transition));
-    memset(nfa->transCount, 0, sizeof(nfa->transCount));
-    memset(nfa->epsilonCount, 0, sizeof(nfa->epsilonCount));
-    memset(nfa->finalStates, 0, sizeof(nfa->finalStates));
-
-    /* Transitions */
-    nfa->transition[0][0][nfa->transCount[0][0]++] = 0;
-    nfa->transition[0][0][nfa->transCount[0][0]++] = 1;
-    nfa->transition[1][1][nfa->transCount[1][1]++] = 2;
-
-    /* ε-transition */
-    nfa->epsilon[0][nfa->epsilonCount[0]++] = 2;
-
-    /* Final state */
-    nfa->finalStates[2] = 1;
-}
-
 /* ================= MAIN ================= */
 
 int main() {
-    NFA nfa;
+    NFA nfa = {0};
     DFA dfa = {0};
 
-    sampleNFA(&nfa);
+    printf("Enter number of NFA states: ");
+    scanf("%d", &nfa.numStates);
 
-    convertToDFA(&nfa, &dfa);
+    printf("Enter number of symbols: ");
+    scanf("%d", &nfa.numSymbols);
 
+    printf("Enter symbols: ");
+    for (int i = 0; i < nfa.numSymbols; i++)
+        scanf(" %c", &nfa.symbols[i]);
+
+    printf("Enter start state: ");
+    scanf("%d", &nfa.start);
+
+    int fcount;
+    printf("Enter number of final states: ");
+    scanf("%d", &fcount);
+
+    printf("Enter final states: ");
+    for (int i = 0; i < fcount; i++) {
+        int x; scanf("%d", &x);
+        nfa.final[x] = 1;
+    }
+
+    int t;
+    printf("Enter number of transitions: ");
+    scanf("%d", &t);
+
+    printf("Enter transitions: from symbol to\n");
+    for (int i = 0; i < t; i++) {
+        int from, to;
+        char sym;
+        scanf("%d %c %d", &from, &sym, &to);
+
+        char *ptr = strchr(nfa.symbols, sym);
+        if (!ptr) {
+            printf("Invalid symbol!\n");
+            return 1;
+        }
+
+        int idx = ptr - nfa.symbols;
+        nfa.trans[from][idx][nfa.transCount[from][idx]++] = to;
+    }
+
+    int e;
+    printf("Enter number of epsilon transitions: ");
+    scanf("%d", &e);
+
+    printf("Enter epsilon transitions: from to\n");
+    for (int i = 0; i < e; i++) {
+        int from, to;
+        scanf("%d %d", &from, &to);
+        nfa.epsilon[from][nfa.epsilonCount[from]++] = to;
+    }
+
+    convert(&nfa, &dfa);
     printDFA(&dfa, &nfa);
 
     return 0;
