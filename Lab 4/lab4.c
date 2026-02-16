@@ -1,25 +1,5 @@
-//Elimination of Ambiguity, Left Recursion and Left Factoring
-/*      
-
-        ✔ Elimination of Left Recursion
-
-    Implements:
-
-    1. Immediate left recursion
-    2. Creates A′ non-terminal
-    3. Adds ε production
-
-        ✔ Left Factoring
-
-    Detects: 
-    1. Common prefix
-    2. Introduces new factored non-terminal
-
-        ✔ Ambiguity handling*/
-
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
 #define MAX 10
 #define LEN 50
@@ -27,9 +7,12 @@
 /* ================= GRAMMAR STORAGE ================= */
 
 char nonTerminals[MAX];
-char productions[MAX][MAX][LEN];   // productions[A][i] = ith rule of A
+char productions[MAX][MAX][LEN];
 int prodCount[MAX];
 int n;
+
+/* pool for new non-terminals */
+char freshNT = 'Z';
 
 /* ================= PRINT GRAMMAR ================= */
 
@@ -52,42 +35,55 @@ void printGrammar(char title[]) {
 void removeLeftRecursion() {
     for (int i = 0; i < n; i++) {
 
-        char alpha[MAX][LEN];  // recursive parts
-        char beta[MAX][LEN];   // non-recursive parts
+        char alpha[MAX][LEN];
+        char beta[MAX][LEN];
         int a = 0, b = 0;
 
         for (int j = 0; j < prodCount[i]; j++) {
 
-            if (productions[i][j][0] == nonTerminals[i]) {
-                // A → Aα  → store α
+            if (productions[i][j][0] == nonTerminals[i])
                 strcpy(alpha[a++], productions[i][j] + 1);
-            } else {
-                // A → β
+            else
                 strcpy(beta[b++], productions[i][j]);
-            }
         }
 
-        if (a == 0) continue; // no left recursion
+        if (a == 0) continue;
 
-        // create new non-terminal A'
-        char newNT = nonTerminals[i] + '\'';
+        char newNT = freshNT--;
         nonTerminals[n] = newNT;
 
-        // update A → βA'
+        /* A → βA' */
         prodCount[i] = 0;
-        for (int j = 0; j < b; j++) {
+        for (int j = 0; j < b; j++)
             sprintf(productions[i][prodCount[i]++], "%s%c", beta[j], newNT);
-        }
 
-        // create A' → αA' | ε
+        /* A' → αA' | e */
         prodCount[n] = 0;
-        for (int j = 0; j < a; j++) {
+        for (int j = 0; j < a; j++)
             sprintf(productions[n][prodCount[n]++], "%s%c", alpha[j], newNT);
-        }
-        strcpy(productions[n][prodCount[n]++], "ε");
+
+        strcpy(productions[n][prodCount[n]++], "e");
 
         n++;
     }
+}
+
+/* ================= LONGEST COMMON PREFIX ================= */
+
+int lcpLength(int idx) {
+    if (prodCount[idx] < 2) return 0;
+
+    int len = strlen(productions[idx][0]);
+
+    for (int j = 1; j < prodCount[idx]; j++) {
+        int k = 0;
+        while (k < len &&
+               productions[idx][0][k] == productions[idx][j][k])
+            k++;
+        len = k;
+    }
+
+    return len;
 }
 
 /* ================= LEFT FACTORING ================= */
@@ -95,41 +91,31 @@ void removeLeftRecursion() {
 void leftFactoring() {
     for (int i = 0; i < n; i++) {
 
-        if (prodCount[i] < 2) continue;
+        int lcp = lcpLength(i);
+        if (lcp == 0) continue;
 
-        char prefix = productions[i][0][0];
-        int same = 1;
-
-        for (int j = 1; j < prodCount[i]; j++) {
-            if (productions[i][j][0] != prefix) {
-                same = 0;
-                break;
-            }
-        }
-
-        if (!same) continue;
-
-        // create new non-terminal A'
-        char newNT = nonTerminals[i] + '\'';
+        char newNT = freshNT--;
         nonTerminals[n] = newNT;
 
-        // A → prefix A'
-        char temp[LEN];
-        sprintf(temp, "%c%c", prefix, newNT);
+        char prefix[LEN];
+        strncpy(prefix, productions[i][0], lcp);
+        prefix[lcp] = '\0';
 
+        /* new productions for A' */
         prodCount[n] = 0;
 
-        // A' → remaining suffixes
         for (int j = 0; j < prodCount[i]; j++) {
-            if (strlen(productions[i][j]) == 1)
-                strcpy(productions[n][prodCount[n]++], "ε");
+
+            if (strlen(productions[i][j]) == lcp)
+                strcpy(productions[n][prodCount[n]++], "e");
             else
-                strcpy(productions[n][prodCount[n]++], productions[i][j] + 1);
+                strcpy(productions[n][prodCount[n]++],
+                       productions[i][j] + lcp);
         }
 
-        // replace A productions
+        /* replace A → prefix A' */
         prodCount[i] = 1;
-        strcpy(productions[i][0], temp);
+        sprintf(productions[i][0], "%s%c", prefix, newNT);
 
         n++;
     }
