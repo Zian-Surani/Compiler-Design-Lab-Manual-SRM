@@ -1,21 +1,10 @@
-//Computation of FIRST and FOLLOW sets of a Context-Free Grammar
-/*
-
-Computes:
-
-1. FIRST set
-2. FOLLOW set
-3. Handles ε-productions
-4. Works for multiple CFG rules
-5. Prints formal mathematical notation
-*/
-
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 
 #define MAX 10
 #define LEN 50
+#define EPS 'e'   /* epsilon representation */
 
 char nonTerminals[MAX];
 char productions[MAX][MAX][LEN];
@@ -47,31 +36,29 @@ void findFirst(int i) {
 
         char *prod = productions[i][j];
 
-        /* Case 1: terminal or epsilon */
+        /* terminal or epsilon */
         if (!isupper(prod[0])) {
             addToSet(FIRST[i], &firstCount[i], prod[0]);
         }
         else {
-            /* Case 2: non-terminal */
             int k;
+
             for (k = 0; prod[k] != '\0'; k++) {
 
                 int index = prod[k] - 'A';
                 findFirst(index);
 
                 for (int m = 0; m < firstCount[index]; m++) {
-                    if (FIRST[index][m] != 'ε')
+                    if (FIRST[index][m] != EPS)
                         addToSet(FIRST[i], &firstCount[i], FIRST[index][m]);
                 }
 
-                /* Stop if epsilon not present */
-                if (!contains(FIRST[index], firstCount[index], 'ε'))
+                if (!contains(FIRST[index], firstCount[index], EPS))
                     break;
             }
 
-            /* All symbols had epsilon */
             if (prod[k] == '\0')
-                addToSet(FIRST[i], &firstCount[i], 'ε');
+                addToSet(FIRST[i], &firstCount[i], EPS);
         }
     }
 }
@@ -80,7 +67,6 @@ void findFirst(int i) {
 
 void findFollow(int i) {
 
-    /* Start symbol gets $ */
     if (i == 0)
         addToSet(FOLLOW[i], &followCount[i], '$');
 
@@ -93,7 +79,6 @@ void findFollow(int i) {
 
                 if (prod[k] == nonTerminals[i]) {
 
-                    /* Case: next symbol exists */
                     if (prod[k + 1] != '\0') {
 
                         if (!isupper(prod[k + 1])) {
@@ -103,18 +88,16 @@ void findFollow(int i) {
                             int index = prod[k + 1] - 'A';
 
                             for (int m = 0; m < firstCount[index]; m++) {
-                                if (FIRST[index][m] != 'ε')
+                                if (FIRST[index][m] != EPS)
                                     addToSet(FOLLOW[i], &followCount[i], FIRST[index][m]);
                             }
 
-                            if (contains(FIRST[index], firstCount[index], 'ε'))
+                            if (contains(FIRST[index], firstCount[index], EPS))
                                 findFollow(A);
                         }
                     }
-                    else {
-                        /* End of production */
-                        if (A != i)
-                            findFollow(A);
+                    else if (A != i) {
+                        findFollow(A);
                     }
                 }
             }
@@ -164,15 +147,12 @@ int main() {
         }
     }
 
-    /* Compute FIRST */
     for (int i = 0; i < n; i++)
         findFirst(i);
 
-    /* Compute FOLLOW */
     for (int i = 0; i < n; i++)
         findFollow(i);
 
-    /* Print results */
     printSets();
 
     return 0;
